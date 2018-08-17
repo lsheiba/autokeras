@@ -129,6 +129,8 @@ class BayesianSearcher:
             print('+' + '-' * len(line) + '+')
             print('|' + line + '|')
             for i, r in enumerate(self.history):
+                if r['loss'] is torch.Tensor:
+                    r['loss'] = r['loss'].item
                 print('+' + '-' * len(line) + '+')
                 line = '|'.join(str(r[x]).center(24) for x in idx)
                 print('|' + line + '|')
