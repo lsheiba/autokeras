@@ -115,7 +115,7 @@ class BayesianSearcher:
 
         # Update best_model text file
 
-        ret = {'model_id': model_id, 'loss': loss.item(), 'metric_value': metric_value}
+        ret = {'model_id': model_id, 'loss': loss, 'metric_value': metric_value}
         self.history.append(ret)
         if model_id == self.get_best_model_id():
             file = open(os.path.join(self.path, 'best_model.txt'), 'w')
