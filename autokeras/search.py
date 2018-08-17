@@ -115,17 +115,24 @@ class BayesianSearcher:
 
         # Update best_model text file
 
-        if self.verbose:
-            print('Model ID:', model_id)
-            print('Loss:', loss)
-            print('Metric Value:', metric_value)
-
-        ret = {'model_id': model_id, 'loss': loss, 'metric_value': metric_value}
+        ret = {'model_id': model_id, 'loss': loss.item(), 'metric_value': metric_value}
         self.history.append(ret)
         if model_id == self.get_best_model_id():
             file = open(os.path.join(self.path, 'best_model.txt'), 'w')
             file.write('best model: ' + str(model_id))
             file.close()
+
+        if self.verbose:
+            idx = ['model_id', 'loss', 'metric_value']
+            header = ['Model ID', 'Loss', 'Metric Value']
+            line = '|'.join(x.center(24) for x in header)
+            print('+' + '-' * len(line) + '+')
+            print('|' + line + '|')
+            for i, r in enumerate(self.history):
+                print('+' + '-' * len(line) + '+')
+                line = '|'.join(str(r[x]).center(24) for x in idx)
+                print('|' + line + '|')
+            print('+' + '-' * len(line) + '+')
 
         descriptor = graph.extract_descriptor()
         self.x_queue.append(descriptor)
@@ -135,7 +142,7 @@ class BayesianSearcher:
 
     def init_search(self):
         if self.verbose:
-            print('Initializing search.')
+            print('\nInitializing search.')
         graph = CnnGenerator(self.n_classes,
                              self.input_shape).generate(self.default_model_len,
                                                         self.default_model_width)
@@ -160,7 +167,10 @@ class BayesianSearcher:
         # Start the new process for training.
         graph, father_id, model_id = self.training_queue.pop(0)
         if self.verbose:
-            print('Training model ', model_id)
+            print('\n')
+            print('╒' + '=' * 46 + '╕')
+            print('|' + 'Training model {}'.format(model_id).center(46) + '|')
+            print('╘' + '=' * 46 + '╛')
         multiprocessing.set_start_method('spawn', force=True)
         pool = multiprocessing.Pool(1)
         train_results = pool.map_async(train, [(graph, train_data, test_data, self.trainer_args,
@@ -179,8 +189,17 @@ class BayesianSearcher:
                 self.descriptors.append(new_graph.extract_descriptor())
 
                 if self.verbose:
-                    print('Father ID: ', new_father_id)
-                    print(new_graph.operation_history)
+                    cell_size = [24, 49]
+                    header = ['Father Model ID', 'Added Operation']
+                    line = '|'.join(str(x).center(cell_size[i]) for i, x in enumerate(header))
+                    print('+' + '-' * len(line) + '+')
+                    print('|' + line + '|')
+                    print('+' + '-' * len(line) + '+')
+
+                    r = [new_father_id, new_graph.operation_history[0]]
+                    line = '|'.join(str(x).center(cell_size[i]) for i, x in enumerate(r))
+                    print('|' + line + '|')
+                    print('+' + '-' * len(line) + '+')
             remaining_time = timeout - (time.time() - start_time)
             if remaining_time > 0:
                 metric_value, loss, graph = train_results.get(timeout=remaining_time)[0]
@@ -190,7 +209,7 @@ class BayesianSearcher:
             # if no model found in the time limit, raise TimeoutError
             if self.model_count == 0:
                 # convert multiprocessing.TimeoutError to builtin TimeoutError for ux
-                raise TimeoutError("search Timeout") from e
+                raise TimeoutError("Search Timeout") from e
             # else return the result found in the time limit
             else:
                 return

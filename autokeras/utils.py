@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from autokeras.constant import Constant
-
+from tqdm.autonotebook import tqdm
 
 class NoImprovementError(Exception):
     def __init__(self, message):
@@ -99,17 +99,35 @@ class ModelTrainer:
         test_accuracy_list = []
         test_loss_list = []
         self.optimizer = torch.optim.Adam(self.model.parameters())
+        if self.verbose:
+            pbar = tqdm(total=max_iter_num,
+                        desc='   Model    '.format(),
+                        file=sys.stdout,
+                        leave=False,
+                        ncols=75,
+                        position=1,
+                        unit=' epoch')
         for epoch in range(max_iter_num):
             self._train(epoch)
             test_loss, accuracy = self._test(epoch)
             test_accuracy_list.append(accuracy)
             test_loss_list.append(test_loss)
             if self.verbose:
-                print('Epoch {}: loss {}, accuracy {}'.format(epoch + 1, test_loss, accuracy))
+                pbar.update(1)
+                if epoch == 0:
+                    header = ['Epoch', 'Loss', 'Accuracy']
+                    line = '|'.join(x.center(24) for x in header)
+                    pbar.write('+' + '-' * len(line) + '+')
+                    pbar.write('|' + line + '|')
+                    pbar.write('+' + '-' * len(line) + '+')
+                r = [epoch + 1, test_loss.item(), accuracy]
+                line = '|'.join(str(x).center(24) for x in r)
+                pbar.write('|' + line + '|')
+                pbar.write('+' + '-' * len(line) + '+')
             decreasing = self.early_stop.on_epoch_end(test_loss)
             if not decreasing:
                 if self.verbose:
-                    print('No loss decrease after {} epochs'.format(max_no_improvement_num))
+                    print('No loss decrease after {} epochs.\n'.format(max_no_improvement_num))
                 break
         return (sum(test_loss_list[-max_no_improvement_num:]) / max_no_improvement_num,
                 sum(test_accuracy_list[-max_no_improvement_num:]) / max_no_improvement_num)
@@ -118,7 +136,16 @@ class ModelTrainer:
         self.model.train()
         loader = self.train_loader
 
-        for batch_idx, (inputs, targets) in enumerate(deepcopy(loader)):
+        cp_loader = deepcopy(loader)
+        if self.verbose:
+            pbar = tqdm(total=len(cp_loader),
+                        desc='   Epoch {0:3d}'.format(epoch + 1),
+                        file=sys.stdout,
+                        leave=False,
+                        ncols=75,
+                        position=0,
+                        unit=' batch')
+        for batch_idx, (inputs, targets) in enumerate(cp_loader):
             inputs, targets = inputs.to(self.device), targets.to(self.device)
             self.optimizer.zero_grad()
             outputs = self.model(inputs)
@@ -127,10 +154,9 @@ class ModelTrainer:
             self.optimizer.step()
             if self.verbose:
                 if batch_idx % 10 == 0:
-                    print('.', end='')
-                    sys.stdout.flush()
+                    pbar.update(10)
         if self.verbose:
-            print()
+            pbar.close()
 
     def _test(self, epoch):
         self.model.eval()
